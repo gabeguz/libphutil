@@ -393,36 +393,37 @@ final class Filesystem {
    */
   public static function readRandomBytes($number_of_bytes) {
 
-    if (phutil_is_windows()) {
-      if (!function_exists('openssl_random_pseudo_bytes')) {
-        if (version_compare(PHP_VERSION, '5.3.0') < 0) {
-          throw new Exception(
-            'Filesystem::readRandomBytes() requires at least PHP 5.3 under '.
-            'Windows.');
-        }
+    if (!function_exists('openssl_random_pseudo_bytes')) {
+      if (version_compare(PHP_VERSION, '5.3.0') < 0) {
         throw new Exception(
-          'Filesystem::readRandomBytes() requires OpenSSL extension under '.
+          'Filesystem::readRandomBytes() requires at least PHP 5.3 under '.
           'Windows.');
       }
-      $strong = true;
-      return openssl_random_pseudo_bytes($number_of_bytes, $strong);
+      throw new Exception(
+        'Filesystem::readRandomBytes() requires OpenSSL extension under '.
+        'Windows.');
     }
+    $strong = true;
+    $data = openssl_random_pseudo_bytes($number_of_bytes, $strong);
 
-    $urandom = @fopen('/dev/urandom', 'rb');
-    if (!$urandom) {
-      throw new FilesystemException(
-        '/dev/urandom',
-        'Failed to open /dev/urandom for reading!');
+    if(strlen($data) != $number_of_bytes) {
+      // fallback to /dev/urandom -- if available
+      $urandom = @fopen('/dev/urandom', 'rb');
+      if (!$urandom) {
+        throw new FilesystemException(
+          '/dev/urandom',
+          'Failed to open /dev/urandom for reading!');
+      }
+
+      $data = @fread($urandom, $number_of_bytes);
+      if (strlen($data) != $number_of_bytes) {
+        throw new FilesystemException(
+          '/dev/urandom',
+          'Failed to read random bytes!');
+      }
+
+      @fclose($urandom);
     }
-
-    $data = @fread($urandom, $number_of_bytes);
-    if (strlen($data) != $number_of_bytes) {
-      throw new FilesystemException(
-        '/dev/urandom',
-        'Failed to read random bytes!');
-    }
-
-    @fclose($urandom);
 
     return $data;
   }
